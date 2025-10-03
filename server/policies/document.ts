@@ -53,11 +53,8 @@ allow(User, "download", Document, (actor, document) =>
 
 allow(User, "comment", Document, (actor, document) =>
   and(
-    // TODO: We'll introduce a separate permission for commenting
-    or(
-      and(can(actor, "read", document), !actor.isGuest),
-      and(can(actor, "update", document), actor.isGuest)
-    ),
+    can(actor, "read", document),
+    !actor.isGuest,
     isTeamMutable(actor),
     !!document?.isActive,
     !document?.template,

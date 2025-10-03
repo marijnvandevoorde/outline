@@ -136,6 +136,42 @@ export default class Comment extends Mark {
   get plugins(): Plugin[] {
     return [
       new Plugin({
+        view: () => ({
+          update: (view, prevState) => {
+            // Auto-trigger comment creation for viewers when they select text
+            if (
+              this.editor?.props.readOnly &&
+              this.editor?.props.canComment &&
+              !this.editor?.props.canUpdate
+            ) {
+              const { state } = view;
+              const { selection } = state;
+              const prevSelection = prevState.selection;
+
+              // Check if selection changed from empty to non-empty text selection
+              if (
+                prevSelection.empty &&
+                !selection.empty &&
+                selection.from !== selection.to
+              ) {
+                // Check if we're not already in a comment mark
+                if (
+                  !isMarkActive(
+                    state.schema.marks.comment,
+                    { resolved: false },
+                    { exact: true }
+                  )(state)
+                ) {
+                  // Execute the comment command
+                  const command = this.commands?.({ type: state.schema.marks.comment, schema: state.schema });
+                  if (command) {
+                    command(state, view.dispatch);
+                  }
+                }
+              }
+            }
+          },
+        }),
         appendTransaction(transactions, oldState, newState) {
           if (
             !transactions.some(

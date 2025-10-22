@@ -1,5 +1,5 @@
 import { NodeSelection } from "prosemirror-state";
-import { CellSelection, selectedRect } from "prosemirror-tables";
+import { selectedRect } from "prosemirror-tables";
 import * as React from "react";
 import { Portal as ReactPortal } from "react-portal";
 import styled, { css } from "styled-components";
@@ -15,6 +15,9 @@ import useMobile from "~/hooks/useMobile";
 import useWindowSize from "~/hooks/useWindowSize";
 import Logger from "~/utils/Logger";
 import { useEditor } from "./EditorContext";
+import { ColumnSelection } from "@shared/editor/selection/ColumnSelection";
+import { RowSelection } from "@shared/editor/selection/RowSelection";
+import { isTableSelected } from "@shared/editor/queries/table";
 
 type Props = {
   align?: "start" | "end" | "center";
@@ -44,12 +47,18 @@ function usePosition({
 }) {
   const { view } = useEditor();
   const { selection } = view.state;
-  const menuWidth = menuRef.current?.offsetWidth ?? 0;
-  const menuHeight = menuRef.current?.offsetHeight ?? 0;
+  const [menuWidth, setMenuWidth] = React.useState(0);
+  const menuHeight = 36;
 
-  if (!active || !menuRef.current) {
-    return defaultPosition;
-  }
+  // Measure the menu width after DOM updates to ensure accurate positioning
+  React.useLayoutEffect(() => {
+    if (menuRef.current) {
+      const width = menuRef.current.offsetWidth;
+      if (width !== menuWidth) {
+        setMenuWidth(width);
+      }
+    }
+  });
 
   // based on the start and end of the selection calculate the position at
   // the center top
@@ -71,7 +80,7 @@ function usePosition({
     right: Math.max(fromPos.right, toPos.right),
   };
 
-  const offsetParent = menuRef.current.offsetParent
+  const offsetParent = menuRef.current?.offsetParent
     ? menuRef.current.offsetParent.getBoundingClientRect()
     : ({
         width: window.innerWidth,
@@ -96,19 +105,23 @@ function usePosition({
     if (position !== null) {
       const element = view.nodeDOM(position);
       const bounds = (element as HTMLElement).getBoundingClientRect();
-      selectionBounds.top = bounds.top;
+      selectionBounds.top = bounds.top + menuHeight;
       selectionBounds.left = bounds.right;
       selectionBounds.right = bounds.right;
     }
   }
 
+  if (!active || !menuRef.current || !menuHeight) {
+    return defaultPosition;
+  }
+
   // tables are an oddity, and need their own positioning logic
   const isColSelection =
-    selection instanceof CellSelection && selection.isColSelection();
+    selection instanceof ColumnSelection && selection.isColSelection();
   const isRowSelection =
-    selection instanceof CellSelection && selection.isRowSelection();
+    selection instanceof RowSelection && selection.isRowSelection();
 
-  if (isColSelection && isRowSelection) {
+  if (isTableSelected(view.state)) {
     const rect = selectedRect(view.state);
     const table = view.domAtPos(rect.tableStart);
     const bounds = (table.node as HTMLElement).getBoundingClientRect();
@@ -163,6 +176,8 @@ function usePosition({
         top: Math.round(top - menuHeight - offsetParent.top),
         offset: 0,
         visible: true,
+        blockSelection: false,
+        maxWidth: "100%",
       };
     }
   }
@@ -207,8 +222,12 @@ function usePosition({
     top: Math.round(top - offsetParent.top),
     offset: Math.round(offset),
     maxWidth: Math.min(window.innerWidth, offsetParent.width) - margin * 2,
-    blockSelection:
-      codeBlock || isColSelection || isRowSelection || noticeBlock,
+    blockSelection: !!(
+      codeBlock ||
+      isColSelection ||
+      isRowSelection ||
+      noticeBlock
+    ),
     visible: true,
   };
 }
@@ -300,7 +319,7 @@ type WrapperProps = {
 const arrow = (props: WrapperProps) =>
   props.arrow
     ? css`
-        &::before {
+        &::after {
           content: "";
           display: block;
           width: 24px;
@@ -308,11 +327,14 @@ const arrow = (props: WrapperProps) =>
           transform: translateX(-50%) rotate(45deg);
           background: ${s("menuBackground")};
           border-radius: 3px;
-          z-index: -1;
+          z-index: 0;
           position: absolute;
-          bottom: -3px;
+          bottom: -2px;
           left: calc(50% - ${props.$offset || 0}px);
           pointer-events: none;
+
+          // clip to show only the bottom right corner
+          clip-path: polygon(100% 50%, 100% 100%, 50% 100%);
         }
       `
     : "";
@@ -349,7 +371,6 @@ const Background = styled.div<{ align: Props["align"] }>`
   box-shadow: ${s("menuShadow")};
   border-radius: 4px;
   height: 36px;
-  padding: 6px;
 
   ${(props) =>
     props.align === "start" &&

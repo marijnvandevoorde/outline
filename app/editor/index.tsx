@@ -52,8 +52,14 @@ import Logger from "~/utils/Logger";
 import ComponentView from "./components/ComponentView";
 import EditorContext from "./components/EditorContext";
 import { NodeViewRenderer } from "./components/NodeViewRenderer";
-import SelectionToolbar from "./components/SelectionToolbar";
+
 import WithTheme from "./components/WithTheme";
+import isNull from "lodash/isNull";
+import { map } from "lodash";
+import {
+  LightboxImage,
+  LightboxImageFactory,
+} from "@shared/editor/lib/Lightbox";
 import Lightbox from "~/components/Lightbox";
 
 export type Props = {
@@ -144,10 +150,8 @@ type State = {
   isRTL: boolean;
   /** If the editor is currently focused */
   isEditorFocused: boolean;
-  /** If the toolbar for a text selection is visible */
-  selectionToolbarOpen: boolean;
-  /** Position of image in doc that's being currently viewed in Lightbox */
-  activeLightboxImgPos: number | null;
+  /** Image that's being currently viewed in Lightbox */
+  activeLightboxImage: LightboxImage | null;
 };
 
 /**
@@ -176,8 +180,7 @@ export class Editor extends React.PureComponent<
   state: State = {
     isRTL: false,
     isEditorFocused: false,
-    selectionToolbarOpen: false,
-    activeLightboxImgPos: null,
+    activeLightboxImage: null,
   };
 
   isInitialized = false;
@@ -264,19 +267,12 @@ export class Editor extends React.PureComponent<
       this.calculateDir();
     }
 
-    if (
-      !this.isBlurred &&
-      !this.state.isEditorFocused &&
-      !this.state.selectionToolbarOpen
-    ) {
+    if (!this.isBlurred && !this.state.isEditorFocused) {
       this.isBlurred = true;
       this.props.onBlur?.();
     }
 
-    if (
-      this.isBlurred &&
-      (this.state.isEditorFocused || this.state.selectionToolbarOpen)
-    ) {
+    if (this.isBlurred && this.state.isEditorFocused) {
       this.isBlurred = false;
       this.props.onFocus?.();
     }
@@ -640,6 +636,16 @@ export class Editor extends React.PureComponent<
    */
   public getImages = () => ProsemirrorHelper.getImages(this.view.state.doc);
 
+  public getLightboxImages = (): LightboxImage[] => {
+    const lightboxNodes = ProsemirrorHelper.getLightboxNodes(
+      this.view.state.doc
+    );
+
+    return map(lightboxNodes, (node) =>
+      LightboxImageFactory.createLightboxImage(this.view, node.pos)
+    );
+  };
+
   /**
    * Return the tasks/checkmarks in the current editor.
    *
@@ -717,10 +723,10 @@ export class Editor extends React.PureComponent<
     dispatch(tr);
   };
 
-  public updateActiveLightbox = (pos: number | null) => {
+  public updateActiveLightboxImage = (activeImage: LightboxImage | null) => {
     this.setState((state) => ({
       ...state,
-      activeLightboxImgPos: pos,
+      activeLightboxImage: activeImage,
     }));
   };
 
@@ -775,23 +781,6 @@ export class Editor extends React.PureComponent<
     return false;
   };
 
-  private handleOpenSelectionToolbar = () => {
-    this.setState((state) => ({
-      ...state,
-      selectionToolbarOpen: true,
-    }));
-  };
-
-  private handleCloseSelectionToolbar = () => {
-    if (!this.state.selectionToolbarOpen) {
-      return;
-    }
-    this.setState((state) => ({
-      ...state,
-      selectionToolbarOpen: false,
-    }));
-  };
-
   public render() {
     const { readOnly, canUpdate, grow, style, className, onKeyDown } =
       this.props;
@@ -821,18 +810,7 @@ export class Editor extends React.PureComponent<
               ref={this.elementRef}
               lang=""
             />
-            {this.view && (
-              <SelectionToolbar
-                rtl={isRTL}
-                readOnly={readOnly}
-                canUpdate={this.props.canUpdate}
-                canComment={this.props.canComment}
-                isTemplate={this.props.template === true}
-                onOpen={this.handleOpenSelectionToolbar}
-                onClose={this.handleCloseSelectionToolbar}
-                onClickLink={this.props.onClickLink}
-              />
-            )}
+
             {this.widgets &&
               Object.values(this.widgets).map((Widget, index) => (
                 <Widget key={String(index)} rtl={isRTL} readOnly={readOnly} />
@@ -843,10 +821,12 @@ export class Editor extends React.PureComponent<
               )}
             </Observer>
           </Flex>
-          {this.state.activeLightboxImgPos && (
+          {!isNull(this.state.activeLightboxImage) && (
             <Lightbox
-              onUpdate={this.updateActiveLightbox}
-              activePos={this.state.activeLightboxImgPos}
+              images={this.getLightboxImages()}
+              activeImage={this.state.activeLightboxImage}
+              onUpdate={this.updateActiveLightboxImage}
+              onClose={() => this.view.focus()}
             />
           )}
         </EditorContext.Provider>

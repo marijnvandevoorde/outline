@@ -483,7 +483,7 @@ iframe.embed {
   width: 100%;
   height: 400px;
   border: 1px solid ${props.theme.embedBorder};
-  border-radius: 6px;
+  border-radius: ${EditorStyleHelper.blockRadius};
 }
 
 .image,
@@ -1387,6 +1387,10 @@ mark {
     `
   }
 
+  &:is(.code-active) + .mermaid-diagram-wrapper {
+    cursor: zoom-in;
+  }
+
   // Hide code without display none so toolbar can still be positioned against it
   &:not(.code-active) {
     height: ${props.staticHTML || props.readOnly ? "auto" : "0"};
@@ -1402,6 +1406,9 @@ mark {
     height: 0;
     overflow: hidden;
     margin: -0.5em 0 0 0;
+    & + .mermaid-diagram-wrapper {
+      cursor: zoom-in;
+    }
 }
 
 .code-block.with-line-numbers {
@@ -1436,7 +1443,7 @@ mark {
   margin: 0.75em 0;
   min-height: 1.6em;
   background: ${props.theme.codeBackground};
-  border-radius: 6px;
+  border-radius: ${EditorStyleHelper.blockRadius};
   border: 1px solid ${props.theme.codeBorder};
   padding: 8px;
   user-select: none;
@@ -1497,10 +1504,13 @@ pre {
 
 table {
   width: 100%;
-  border-collapse: collapse;
-  border-radius: 4px;
+  border-collapse: separate;
+  border-radius: ${EditorStyleHelper.blockRadius};
   margin-top: 1em;
   box-sizing: border-box;
+  border: 1px solid ${props.theme.divider};
+  border-left: 0;
+  border-spacing: 0;
 
   * {
     box-sizing: border-box;
@@ -1509,24 +1519,39 @@ table {
   tr {
     position: relative;
     border-bottom: 1px solid ${props.theme.divider};
+    border-color: inherit;
   }
 
   td,
   th {
     position: relative;
     vertical-align: top;
-    border: 1px solid ${props.theme.divider};
     position: relative;
     padding: 4px 8px;
     text-align: start;
     min-width: 100px;
     font-weight: normal;
+    border-left: 1px solid ${props.theme.divider};
+    border-top: 1px solid ${props.theme.divider};
   }
 
   th {
     background: ${transparentize(0.75, props.theme.divider)};
     color: ${props.theme.textSecondary};
     font-weight: 500;
+  }
+
+  tr:first-child th,
+  tr:first-child td {
+    border-top: 0;
+  }
+  tr:first-child th:first-child,
+  tr:first-child td:first-child {
+    border-radius: ${EditorStyleHelper.blockRadius} 0 0 0;
+  }
+  tr:last-child th:first-child,
+  tr:last-child td:first-child {
+    border-radius: 0 0 0 ${EditorStyleHelper.blockRadius};
   }
 
   td .component-embed {
@@ -1588,6 +1613,7 @@ table {
     left: -16px;
     width: 0;
     height: 2px;
+    z-index: 1;
 
     &::after {
       content: "";
@@ -1632,6 +1658,7 @@ table {
     right: -1px;
     width: 2px;
     height: 0;
+    z-index: 1;
 
     &::after {
       content: "";
